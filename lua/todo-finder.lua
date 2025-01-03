@@ -1,5 +1,4 @@
 local M = {}
-
 -- Default settings
 local default_config = {
 	exclude_dirs = {
@@ -17,13 +16,21 @@ local default_config = {
 
 local config = default_config
 
--- Merge user-provided config with defaults
-M.setup = function(user_config)
-	if user_config then
-		print("LOaded custom config")
-		config = vim.tbl_deep_extend("force", default_config, user_config)
+M.setup = function(opts)
+	opts = opts or {}
+
+	vim.api.nvim_create_user_command("ListTodos", M.list_todos, {})
+
+	local keymap = opts.keymap or config.keymap
+
+	if opts.exclude_dirs then
+		config.exclude_dirs = opts.exclude_dirs
 	end
-	M.set_keymap()
+
+	vim.keymap.set("n", keymap, M.list_todos, {
+		desc = "list project todos",
+		silent = true,
+	})
 end
 
 -- state
@@ -54,13 +61,6 @@ local function get_cursor_line()
 	local line = cursor[1] - 1
 
 	return line
-end
-
-M.set_keymap = function()
-	print("Keymap", config.keymap)
-	vim.keymap.set("n", config.keymap, function()
-		M.list_todos()
-	end, { noremap = true, silent = true })
 end
 
 M.jump_to_todo = function()
@@ -114,13 +114,9 @@ local create_floating_window = function(config, enter)
 		M.close_todos()
 	end)
 
-	vim.api.nvim_buf_set_keymap(
-		state.current_buf,
-		"n",
-		"<CR>",
-		":lua require('todo').jump_to_todo(2)<CR>",
-		{ noremap = true, silent = true }
-	)
+	set_buf_keymap(state.current_buf, "n", "<CR>", function()
+		M.jump_to_todo()
+	end)
 
 	attach_cursor_event()
 
