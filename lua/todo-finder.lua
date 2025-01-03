@@ -1,6 +1,6 @@
 local M = {}
--- Default settings
-local default_config = {
+
+local config = {
 	exclude_dirs = {
 		["node_modules"] = true,
 		[".git"] = true,
@@ -12,12 +12,19 @@ local default_config = {
 		["__pycache__"] = true,
 	},
 	keymap = "<leader>T",
+	colors = {
+		flag = { fg = "#FFFFFF", bg = "#40E0D0", bold = true },
+		text = { fg = "#40E0D0" },
+		active = { fg = "#FFAF5F" },
+	},
 }
-
-local config = default_config
 
 M.setup = function(opts)
 	opts = opts or {}
+
+	vim.api.nvim_set_hl(0, "TodoFlag", opts.colors.flag or config.colors.flag)
+	vim.api.nvim_set_hl(0, "TodoText", opts.colors.text or config.colors.text)
+	vim.api.nvim_set_hl(0, "TodoActive", opts.colors.active or config.colors.active)
 
 	vim.api.nvim_create_user_command("ListTodos", M.list_todos, {})
 
@@ -33,11 +40,11 @@ M.setup = function(opts)
 	})
 end
 
--- state
 local state = {
 	todos = {},
 	current_win = nil,
 	current_buf = nil,
+	current_todo = 0,
 }
 
 local set_buf_keymap = function(buf, mode, lhs, func)
@@ -49,18 +56,88 @@ local set_buf_keymap = function(buf, mode, lhs, func)
 	})
 end
 
-local function truncate_text(text, max_width)
-	if #text > max_width then
-		return text:sub(1, max_width - 3) .. "..."
-	end
-	return text
-end
-
 local function get_cursor_line()
 	local cursor = vim.api.nvim_win_get_cursor(0)
 	local line = cursor[1] - 1
 
 	return line
+end
+
+local function update_todo_highlights(active_line)
+	local lines = vim.api.nvim_buf_get_lines(state.current_buf, 0, -1, false)
+	vim.api.nvim_buf_clear_namespace(state.current_buf, -1, 0, -1)
+	for i, line in ipairs(lines) do
+		local current_line = i - 1
+		local is_active = current_line == active_line
+
+		if is_active then
+			vim.api.nvim_buf_add_highlight(state.current_buf, -1, "TodoActive", current_line, 0, -1)
+		end
+
+		local start_col, end_col = string.find(line, "TODO:")
+		if start_col and end_col then
+			vim.api.nvim_buf_add_highlight(state.current_buf, -1, "TodoTitle", current_line, start_col - 1, end_col)
+
+			local todo_text_start = end_col + 1
+			local todo_text_end = #line
+			vim.api.nvim_buf_add_highlight(
+				state.current_buf,
+				-1,
+				"TodoText",
+				current_line,
+				todo_text_start - 1,
+				todo_text_end
+			)
+		end
+	end
+end
+
+local function attach_cursor_event()
+	local augroup = vim.api.nvim_create_augroup("TodoHighlight", { clear = true })
+
+	vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+		group = augroup,
+		buffer = state.current_buf,
+		callback = function()
+			-- Debugging: Check if this is getting executed
+			print("Executed")
+
+			-- Get the current line number under the cursor
+			local current_line = get_cursor_line()
+
+			update_todo_highlights(current_line)
+		end,
+	})
+end
+
+local create_floating_window = function(config, enter)
+	if enter == nil then
+		enter = false
+	end
+
+	local buf = vim.api.nvim_create_buf(false, true)
+	local win = vim.api.nvim_open_win(buf, enter or false, config)
+
+	state.current_buf = buf
+	state.current_win = win
+
+	-- TODO: Hide cursor in current window
+
+	set_buf_keymap(buf, "n", "q", function()
+		M.close_todos()
+	end)
+
+	set_buf_keymap(buf, "n", "<Esc>", function()
+		M.close_todos()
+	end)
+
+	set_buf_keymap(state.current_buf, "n", "<CR>", function()
+		M.jump_to_todo()
+	end)
+
+	attach_cursor_event()
+
+	return { buf = buf, win = win }
 end
 
 M.jump_to_todo = function()
@@ -78,49 +155,36 @@ M.jump_to_todo = function()
 	end
 end
 
-local function attach_cursor_event()
-	local augroup = vim.api.nvim_create_augroup("TodoHighlight", { clear = true })
+M.list_todos = function()
+	-- TODO: Centering seems off for some reason
+	local width = math.floor(vim.o.columns * 0.8)
+	local height = math.floor(vim.o.lines * 0.8)
+	local col = math.floor((vim.o.columns - width) / 2)
+	local row = math.floor((vim.o.lines - height) / 2.5)
 
-	vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
-		group = augroup,
-		buffer = state.current_buf,
-		callback = function()
-			-- Clear previous highlights
-			vim.api.nvim_buf_clear_namespace(state.current_buf, -1, 0, -1)
+	local window_config = {
+		relative = "editor",
+		width = width,
+		height = height,
+		col = col,
+		row = row,
+		style = "minimal",
+		border = "rounded",
+		title = "Current Todos",
+		title_pos = "center",
+	}
 
-			-- Highlight the current line
-			local line = get_cursor_line()
-			vim.api.nvim_buf_add_highlight(state.current_buf, -1, "Todo", line, 0, -1)
-		end,
-	})
-end
+	create_floating_window(window_config, true)
 
-local create_floating_window = function(config, enter)
-	if enter == nil then
-		enter = false
+	state.todos = M.find_todos()
+
+	local todo_text = {}
+
+	for _, todo in ipairs(state.todos) do
+		table.insert(todo_text, string.format("%s:%s TODO: %s", todo.path, todo.line, todo.text))
 	end
 
-	local buf = vim.api.nvim_create_buf(false, true)
-	local win = vim.api.nvim_open_win(buf, enter or false, config)
-
-	state.current_buf = buf
-	state.current_win = win
-
-	set_buf_keymap(buf, "n", "q", function()
-		M.close_todos()
-	end)
-
-	set_buf_keymap(buf, "n", "<Esc>", function()
-		M.close_todos()
-	end)
-
-	set_buf_keymap(state.current_buf, "n", "<CR>", function()
-		M.jump_to_todo()
-	end)
-
-	attach_cursor_event()
-
-	return { buf = buf, win = win }
+	vim.api.nvim_buf_set_lines(state.current_buf, 0, -1, false, todo_text)
 end
 
 M.find_todos = function()
@@ -146,9 +210,13 @@ M.find_todos = function()
 					if test_chars:find("TODO:") then
 						-- Extract the text after "TODO" in the trimmed line
 						local text = trimmed_line:match("TODO:%s*(.*)")
+
+						-- Get the relative path
+						local relative_path = full_path:sub(#project_root + 2)
+
 						table.insert(state.todos, {
 							text = text,
-							path = full_path,
+							path = relative_path,
 							line = line_number,
 						})
 					end
@@ -160,41 +228,6 @@ M.find_todos = function()
 	todo_search(project_root)
 
 	return state.todos
-end
-
-M.list_todos = function()
-	local width = math.floor(vim.o.columns * 0.8)
-	local height = math.floor(vim.o.lines * 0.8)
-	local col = math.floor((vim.o.columns - width) / 2)
-	local row = math.floor((vim.o.lines - height) / 2)
-
-	state.todos = M.find_todos()
-
-	local window_config = {
-		relative = "editor",
-		width = width,
-		height = height,
-		col = col,
-		row = row,
-		style = "minimal",
-		border = "rounded",
-		title = "Current Todos",
-		title_pos = "center",
-	}
-
-	create_floating_window(window_config, true)
-
-	local todo_text = {}
-
-	for _, todo in ipairs(state.todos) do
-		table.insert(
-			todo_text,
-			string.format("TODO: %s [PATH: %s] [LINE: %s]", truncate_text(todo.text, 80), todo.path, todo.line)
-		)
-	end
-
-	vim.api.nvim_buf_set_lines(state.current_buf, 0, -1, false, todo_text)
-	vim.api.nvim_buf_add_highlight(state.current_buf, -1, "Todo", 0, 0, -1)
 end
 
 M.close_todos = function()
