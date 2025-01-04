@@ -1,5 +1,13 @@
 local M = {}
 
+--[[
+-- TODO: Add tests 
+-- TODO: Support for additional flags such as NOTE, TEST, and WARN
+-- TODO: Update README to include manual and Packer installation methods
+-- TODO: Might want to require a minimum neovim version
+-- TODO: Add some fancy CD pipeline just because
+--]]
+
 local config = {
 	exclude_dirs = {
 		["node_modules"] = true,
@@ -169,7 +177,7 @@ M.list_todos = function()
 		row = row,
 		style = "minimal",
 		border = "rounded",
-		title = "Current Todos",
+		title = " Todo Finder ",
 		title_pos = "center",
 	}
 
@@ -192,6 +200,7 @@ M.find_todos = function()
 
 	local function todo_search(path)
 		for name, t in vim.fs.dir(path) do
+			-- TODO: Can probably just get the relative path
 			local full_path = path .. "/" .. name
 
 			if t == "directory" and not config.exclude_dirs[name] and name:sub(1, 1) ~= "." then
@@ -199,15 +208,16 @@ M.find_todos = function()
 			elseif t == "file" then
 				local data = vim.fn.readfile(full_path)
 				local line_number = 0
+
 				for _, line in ipairs(data) do
 					line_number = line_number + 1
 
-					-- Trim the line before testing for "TODO"
+					-- Trim the line before
 					local trimmed_line = line:match("^%s*(.-)%s*$")
 					local test_chars = trimmed_line:sub(1, 8)
 
 					if test_chars:find("TODO:") then
-						-- Extract the text after "TODO" in the trimmed line
+						-- Extract the text after "TODO"
 						local text = trimmed_line:match("TODO:%s*(.*)")
 
 						-- Get the relative path
@@ -226,6 +236,8 @@ M.find_todos = function()
 
 	todo_search(project_root)
 
+	-- TODO: After going back ad forth on using state or a local
+	-- variable, I'm still undecided so I'll probably change later
 	return state.todos
 end
 
