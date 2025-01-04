@@ -70,3 +70,12 @@ Contributions are welcome! Feel free to open issues and submit pull requests.
 ## License
 
 See LICENSE file
+
+## Credits
+
+- TJ DeVries (@teej_dv) - Tutorial on creating a Neovim plugin
+[Neovim Plugin From Scratch: Markdown Presentation (Part 1)](https://www.youtube.com/watch?v=VGid4aN25iI)
+
+- Folke Lemaitre (@folke) - After starting this project, I found that Folke already
+had created one. I took some inspiration around how he is displaying todos, and
+plan on also adding support for additional flags.
