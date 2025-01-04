@@ -20,7 +20,7 @@ quick access to pending tasks.
 return {
   "steven-dyson/todo-finder.nvim",
   branch = "main",
-  cmd = "TodoFinder",
+  cmd = "ListTodos",
   keys = function()
     return {
       {
@@ -60,8 +60,7 @@ Work In Progress...
 
 ## Commands
 
-- :TodoFinder - Opens the floating TODO window.
-- :ListTodos - Lists TODOs in the command line.
+- :ListTodos - Opens a floating window and Lists TODOs.
 
 ## Contributing
 
