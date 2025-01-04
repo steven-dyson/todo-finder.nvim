@@ -13,7 +13,7 @@ local config = {
 	},
 	keymap = "<leader>T",
 	colors = {
-		flag = { fg = "#FFFFFF", bg = "#40E0D0", bold = true },
+		flag = { fg = "#000000", bg = "#40E0D0", bold = true },
 		text = { fg = "#40E0D0" },
 		active = { fg = "#FFAF5F" },
 	},
@@ -22,9 +22,11 @@ local config = {
 M.setup = function(opts)
 	opts = opts or {}
 
-	vim.api.nvim_set_hl(0, "TodoFlag", opts.colors.flag or config.colors.flag)
-	vim.api.nvim_set_hl(0, "TodoText", opts.colors.text or config.colors.text)
-	vim.api.nvim_set_hl(0, "TodoActive", opts.colors.active or config.colors.active)
+	local colors = opts.colors or config.colors
+
+	vim.api.nvim_set_hl(0, "TodoFlag", colors.flag)
+	vim.api.nvim_set_hl(0, "TodoText", colors.text)
+	vim.api.nvim_set_hl(0, "TodoActive", colors.active)
 
 	vim.api.nvim_create_user_command("ListTodos", M.list_todos, {})
 
@@ -76,7 +78,7 @@ local function update_todo_highlights(active_line)
 
 		local start_col, end_col = string.find(line, "TODO:")
 		if start_col and end_col then
-			vim.api.nvim_buf_add_highlight(state.current_buf, -1, "TodoTitle", current_line, start_col - 1, end_col)
+			vim.api.nvim_buf_add_highlight(state.current_buf, -1, "TodoFlag", current_line, start_col - 1, end_col)
 
 			local todo_text_start = end_col + 1
 			local todo_text_end = #line
@@ -99,9 +101,6 @@ local function attach_cursor_event()
 		group = augroup,
 		buffer = state.current_buf,
 		callback = function()
-			-- Debugging: Check if this is getting executed
-			print("Executed")
-
 			-- Get the current line number under the cursor
 			local current_line = get_cursor_line()
 
