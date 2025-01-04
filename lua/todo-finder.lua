@@ -214,9 +214,12 @@ M.find_todos = function()
 
 					-- Trim the line before
 					local trimmed_line = line:match("^%s*(.-)%s*$")
-					local test_chars = trimmed_line:sub(1, 8)
 
-					if test_chars:find("TODO:") then
+					-- TODO: I removed the test_chars because it broken todos at the end
+					-- of new lines. However I'd like to add a check for comments to
+					-- address this later
+
+					if trimmed_line:find("TODO: ") then
 						-- Extract the text after "TODO"
 						local text = trimmed_line:match("TODO:%s*(.*)")
 
