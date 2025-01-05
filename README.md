@@ -66,6 +66,10 @@ Work In Progress...
 
 Contributions are welcome! Feel free to open issues and submit pull requests.
 
+## Support My Work
+
+If you find this project useful, consider [buying me a coffee](https://www.buymeacoffee.com/steven.dyson)!
+
 ## License
 
 See LICENSE file
