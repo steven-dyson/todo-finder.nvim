@@ -48,9 +48,7 @@ M.setup = function(opts)
 
 	vim.api.nvim_create_user_command("ListTodos", M.list_todos, {})
 
-	local keymap = opts.keymap or settings.keymap
-
-	vim.keymap.set("n", keymap, M.list_todos, {
+	vim.keymap.set("n", settings.keymap, M.list_todos, {
 		desc = "list project todos",
 		silent = true,
 	})
@@ -163,8 +161,8 @@ M.jump_to_todo = function()
 
 		M.close_todos()
 
-		vim.cmd("edit " .. path) -- Open the file
-		vim.api.nvim_win_set_cursor(0, { line, 0 }) -- Jump to the line
+		vim.cmd("edit " .. path)
+		vim.api.nvim_win_set_cursor(0, { line, 0 })
 	end
 end
 
