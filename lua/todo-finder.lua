@@ -8,7 +8,7 @@ local M = {}
 -- TODO: Add some fancy CD pipeline just because
 --]]
 
-local config = {
+local settings = {
 	exclude_dirs = {
 		["node_modules"] = true,
 		[".git"] = true,
@@ -30,19 +30,25 @@ local config = {
 M.setup = function(opts)
 	opts = opts or {}
 
-	local colors = opts.colors or config.colors
+	if opts.colors then
+		settings.colors = opts.colors
+	end
 
-	vim.api.nvim_set_hl(0, "TodoFlag", colors.flag)
-	vim.api.nvim_set_hl(0, "TodoText", colors.text)
-	vim.api.nvim_set_hl(0, "TodoActive", colors.active)
+	if opts.keymap then
+		settings.keymap = opts.keymap
+	end
+
+	if opts.exclude_dirs then
+		settings.exclude_dirs = opts.exclude_dirs
+	end
+
+	vim.api.nvim_set_hl(0, "TodoFlag", settings.colors.flag)
+	vim.api.nvim_set_hl(0, "TodoText", settings.colors.text)
+	vim.api.nvim_set_hl(0, "TodoActive", settings.colors.active)
 
 	vim.api.nvim_create_user_command("ListTodos", M.list_todos, {})
 
-	local keymap = opts.keymap or config.keymap
-
-	if opts.exclude_dirs then
-		config.exclude_dirs = opts.exclude_dirs
-	end
+	local keymap = opts.keymap or settings.keymap
 
 	vim.keymap.set("n", keymap, M.list_todos, {
 		desc = "list project todos",
@@ -203,7 +209,7 @@ M.find_todos = function()
 			-- TODO: Can probably just get the relative path
 			local full_path = path .. "/" .. name
 
-			if t == "directory" and not config.exclude_dirs[name] and name:sub(1, 1) ~= "." then
+			if t == "directory" and not settings.exclude_dirs[name] and name:sub(1, 1) ~= "." then
 				todo_search(full_path)
 			elseif t == "file" then
 				local data = vim.fn.readfile(full_path)
