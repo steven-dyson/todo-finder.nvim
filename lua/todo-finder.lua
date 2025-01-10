@@ -27,14 +27,16 @@ local settings = {
 	},
 }
 
--- Set up an autocmd that triggers when a new buffer is opened
 vim.api.nvim_create_autocmd("BufWinEnter", {
 	callback = function()
 		--print("Ran")
 	end,
 })
 
+-- NOTE: Optimized
 M.setup = function(opts)
+	local wk = require("which-key")
+
 	opts = opts or {}
 
 	if opts.colors then
@@ -55,9 +57,8 @@ M.setup = function(opts)
 
 	vim.api.nvim_create_user_command("ListTodos", M.list_todos, {})
 
-	vim.keymap.set("n", settings.keymap, M.list_todos, {
-		desc = "List Project Todos",
-		silent = true,
+	wk.add({
+		{ settings.keymap, M.list_todos, desc = "List Project Todos", icon = "📋" },
 	})
 end
 
@@ -71,6 +72,12 @@ local state = {
 	search_string = "",
 }
 
+-- Highlight Namespaces
+local todo_list_default = vim.api.nvim_create_namespace("todo_list_default")
+local todo_list_active = vim.api.nvim_create_namespace("todo_list_active")
+local todo_list_search = vim.api.nvim_create_namespace("todo_list_search")
+
+-- Generic
 local set_buf_keymap = function(buf, mode, lhs, func)
 	vim.keymap.set(mode, lhs, func, {
 		buffer = buf,
@@ -80,67 +87,60 @@ local set_buf_keymap = function(buf, mode, lhs, func)
 	})
 end
 
-local function update_todo_highlights(ns)
-	local lines = vim.api.nvim_buf_get_lines(state.current_buf, 0, -1, false)
-	local win_width = vim.api.nvim_win_get_width(0)
-	vim.api.nvim_buf_clear_namespace(state.current_buf, ns or -1, 0, -1)
+-- Generic
+local create_floating_window = function(config, enter)
+	local buf = vim.api.nvim_create_buf(false, true)
+	local win = vim.api.nvim_open_win(buf, enter or false, config)
 
-	for i = 1, #lines do
-		local todo_block = math.floor((i - 1) / 3) + 1 -- Calculate block number (1-based)
-		local line_in_block = (i - 1) % 3 -- Determine which line within the block (0, 1, 2)
-		local end_col = win_width
+	vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
+	vim.keymap.set("n", "i", "<nop>", { buffer = buf }) -- Disable `i`
+	vim.keymap.set("n", "a", "<nop>", { buffer = buf }) -- Disable `a`
+	vim.keymap.set("n", "o", "<nop>", { buffer = buf }) -- Disable `o`
+	vim.keymap.set("n", "O", "<nop>", { buffer = buf }) -- Disable `O`
+	vim.keymap.set("n", "c", "<nop>", { buffer = buf }) -- Disable `c` commands
+	vim.keymap.set("n", "s", "<nop>", { buffer = buf }) -- Disable `s`
+	return { buf = buf, win = win }
+end
 
-		-- Highlight the first line's "TODO" flag and file path
-		if line_in_block == 0 then
-			vim.api.nvim_buf_add_highlight(state.current_buf, ns or -1, "TodoFlag", i - 1, 0, 4) -- "TODO" (first 4 chars)
-			vim.api.nvim_buf_add_highlight(state.current_buf, ns or -1, "Title", i - 1, 4, -1) -- Rest of the line
-		end
+-- Generic
+local highlight_buffer_matches = function(buf, string, ns)
+	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 
-		-- First line of active block
-		if line_in_block == 0 and todo_block == state.current_todo then
-			vim.api.nvim_buf_add_highlight(state.current_buf, ns or -1, "CursorLine", i - 1, 4, end_col)
-		end
+	vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
 
-		-- Second line of active block
-		if line_in_block == 1 and todo_block == state.current_todo then
-			vim.api.nvim_buf_add_highlight(state.current_buf, ns or -1, "CursorLine", i - 1, 0, 200)
+	for i, line in ipairs(lines) do
+		local lower = string.lower(line)
+		local match_start, match_end = lower:find(string)
+		if match_start and match_end then
+			vim.api.nvim_buf_add_highlight(buf, ns, "TodoActive", i - 1, match_start - 1, match_end)
 		end
 	end
 end
 
--- TODO: Make this generic so it supports being used on any floating windows.
--- It currently uses state.current_buf and state.current_win
-local create_floating_window = function(config, enter)
-	local buf = vim.api.nvim_create_buf(false, true)
-	local win = vim.api.nvim_open_win(buf, enter or false, config)
-	vim.api.nvim_set_option_value("omnifunc", "", { buf = buf })
-	--vim.api.nvim_set_option_value("completeopt", "manual", { buf = buf }) -- TODO: Hide cursor in current window
+local function update_todo_highlights()
+	local lines = vim.api.nvim_buf_get_lines(state.current_buf, 0, -1, false)
+	local win_width = vim.api.nvim_win_get_width(0)
+	vim.api.nvim_buf_clear_namespace(state.current_buf, todo_list_default, 0, -1)
 
-	set_buf_keymap(buf, "n", "q", function()
-		M.close_todos()
-	end)
+	for i = 1, #lines do
+		local todo_block = math.floor((i - 1) / 3) + 1
+		local line_in_block = (i - 1) % 3
+		local end_col = win_width
 
-	set_buf_keymap(buf, "n", "<Esc>", function()
-		M.close_todos()
-	end)
+		-- Highlight the first line's "TODO" flag and file path
+		if line_in_block == 0 then
+			vim.api.nvim_buf_add_highlight(state.current_buf, todo_list_default, "TodoFlag", i - 1, 0, 4)
+			vim.api.nvim_buf_add_highlight(state.current_buf, todo_list_default, "Title", i - 1, 4, -1)
+		end
 
-	return { buf = buf, win = win }
-end
+		-- First line of active block
+		if line_in_block == 0 and todo_block == state.current_todo then
+			vim.api.nvim_buf_add_highlight(state.current_buf, todo_list_default, "CursorLine", i - 1, 4, end_col)
+		end
 
--- Define the namespace globally or in a shared scope
-local ns_id = vim.api.nvim_create_namespace("search_highlights")
-
-local highlight_buffer_matches = function(buf, string)
-	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-
-	-- Clear previous highlights
-	vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
-
-	for i, line in ipairs(lines) do
-		local match_start, match_end = line:find(string)
-		if match_start and match_end then
-			-- Add highlight for each match
-			vim.api.nvim_buf_add_highlight(buf, ns_id, "TodoActive", i - 1, match_start - 1, match_end)
+		-- Second line of active block
+		if line_in_block == 1 and todo_block == state.current_todo then
+			vim.api.nvim_buf_add_highlight(state.current_buf, todo_list_default, "CursorLine", i - 1, 0, 200)
 		end
 	end
 end
@@ -161,13 +161,47 @@ M.jump_to_todo = function()
 end
 
 M.list_todos = function()
+	M.create_list_window()
+
+	M.update_list_buf()
+
+	M.create_search_window()
+end
+
+M.update_list_buf = function()
+	state.todos = M.find_todos()
+
+	local todo_text = {}
+
+	local spaces = ""
+
+	for i = 1, 150 do
+		spaces = spaces .. " "
+	end
+
+	for _, todo in ipairs(state.todos) do
+		local lower = string.lower(todo.text)
+		if lower:find(state.search_string) then
+			table.insert(todo_text, string.format("TODO %s:%s%s", todo.path, todo.line, spaces))
+			table.insert(todo_text, string.format("%s%s", todo.text, spaces))
+			table.insert(todo_text, "")
+		end
+	end
+
+	vim.api.nvim_buf_set_lines(state.current_buf, 0, -1, false, todo_text)
+
+	update_todo_highlights()
+
+	highlight_buffer_matches(state.current_buf, state.search_string, todo_list_search)
+end
+
+M.create_list_window = function()
 	-- TODO: Centering seems off for some reason
 	local width = math.floor(vim.o.columns * 0.7)
 	local height = math.floor(vim.o.lines * 0.7)
 	local col = math.floor((vim.o.columns - width) / 2)
 	local row = math.floor((vim.o.lines - height) / 3)
 
-	local todo_ns = vim.api.nvim_create_namespace("todo_highlights")
 	local window_config = {
 		relative = "editor",
 		width = width,
@@ -186,6 +220,14 @@ M.list_todos = function()
 	state.current_buf = todo_list.buf
 	state.current_win = todo_list.win
 
+	set_buf_keymap(todo_list.buf, "n", "q", function()
+		M.close_todos()
+	end)
+
+	set_buf_keymap(todo_list.buf, "n", "<Esc>", function()
+		M.close_todos()
+	end)
+
 	set_buf_keymap(todo_list.buf, "n", "/", function()
 		vim.api.nvim_set_current_win(state.search_win)
 		vim.cmd("startinsert")
@@ -194,50 +236,32 @@ M.list_todos = function()
 	set_buf_keymap(todo_list.buf, "n", "j", function()
 		if state.current_todo < #state.todos then
 			state.current_todo = state.current_todo + 1
-			update_todo_highlights(todo_ns)
+			update_todo_highlights()
 		end
 	end)
 
 	set_buf_keymap(todo_list.buf, "n", "k", function()
 		if state.current_todo > 1 then
 			state.current_todo = state.current_todo - 1
-			update_todo_highlights(todo_ns)
+			update_todo_highlights()
 		end
 	end)
 
 	set_buf_keymap(todo_list.buf, "n", "<CR>", function()
 		M.jump_to_todo()
 	end)
+end
 
-	state.todos = M.find_todos()
-
-	local todo_text = {}
-
-	local spaces = ""
-
-	for i = 1, 150 do
-		spaces = spaces .. " "
-	end
-
-	for _, todo in ipairs(state.todos) do
-		if todo.text:find(state.search_string) then
-			table.insert(todo_text, string.format("TODO %s:%s%s", todo.path, todo.line, spaces))
-			table.insert(todo_text, string.format("%s%s", todo.text, spaces))
-			table.insert(todo_text, "")
-		end
-	end
-
-	vim.api.nvim_buf_set_lines(state.current_buf, 0, -1, false, todo_text)
-
-	update_todo_highlights(todo_ns)
-
+M.create_search_window = function()
+	local width = math.floor(vim.o.columns * 0.7)
+	local height = math.floor(vim.o.lines * 0.7)
 	local search_window_config = {
-		relative = "win", -- Set relative to the current todo list window
-		win = state.current_win, -- The reference window is the current TODO list window
+		relative = "win",
+		win = state.current_win,
 		width = width,
-		height = 1, -- Set height for one line of text
-		col = -1, -- Position left (or adjust as needed)
-		row = height + 1, -- Position it directly below the todo list window
+		height = 1,
+		col = -1,
+		row = height + 1,
 		style = "minimal",
 		border = "rounded",
 		title = " Search Results ",
@@ -253,22 +277,25 @@ M.list_todos = function()
 		callback = function()
 			local lines = vim.api.nvim_buf_get_lines(state.search_buf, 0, -1, false)
 			local query = table.concat(lines, "\n")
-			print("Current input: " .. query) -- Live output
-			state.search_string = query
+			state.search_string = string.lower(query)
 
-			highlight_buffer_matches(state.current_buf, query)
+			M.update_list_buf()
 		end,
 	})
 
 	set_buf_keymap(search.buf, "n", "<Esc>", function()
-		print("RAN ESC")
 		vim.cmd("stopinsert")
-		vim.api.nvim_set_current_win(todo_list.win)
+		vim.api.nvim_set_current_win(state.current_win)
+	end)
+
+	set_buf_keymap(search.buf, "n", "q", function()
+		vim.cmd("stopinsert")
+		M.close_todos()
 	end)
 
 	set_buf_keymap(search.buf, "i", "<CR>", function()
 		vim.cmd("stopinsert")
-		vim.api.nvim_set_current_win(todo_list.win)
+		vim.api.nvim_set_current_win(state.current_win)
 	end)
 end
 
@@ -290,7 +317,6 @@ M.find_todos = function()
 				for _, line in ipairs(data) do
 					line_number = line_number + 1
 
-					-- Trim the line before
 					local trimmed_line = line:match("^%s*(.-)%s*$")
 
 					-- TODO: I removed the test_chars because it broken todos at the end
@@ -298,7 +324,6 @@ M.find_todos = function()
 					-- address this later
 
 					if trimmed_line:find("TODO: ") then
-						-- Extract the text after "TODO"
 						local text = trimmed_line:match("TODO:%s*(.*)")
 
 						-- Get the relative path
@@ -323,19 +348,16 @@ M.find_todos = function()
 end
 
 M.close_todos = function()
-	-- Close the TODO list window
 	if state.current_win and vim.api.nvim_win_is_valid(state.current_win) then
 		vim.api.nvim_win_close(state.current_win, true)
 		state.current_win = nil
 	end
 
-	-- Close the search window (if it exists)
 	if state.search_win and vim.api.nvim_win_is_valid(state.search_win) then
 		vim.api.nvim_win_close(state.search_win, true)
 		state.search_win = nil
 	end
 
-	-- Delete the associated buffers
 	if state.current_buf and vim.api.nvim_buf_is_valid(state.current_buf) then
 		vim.api.nvim_buf_delete(state.current_buf, { force = true })
 		state.current_buf = nil
@@ -346,17 +368,8 @@ M.close_todos = function()
 		state.search_buf = nil
 	end
 
-	-- Reset the current todo to the first one
 	state.current_todo = 1
+	state.search_string = ""
 end
-
--- Modify the 'q' and '<Esc>' key mappings to close both windows
-set_buf_keymap(state.current_buf, "n", "q", function()
-	M.close_todos()
-end)
-
-set_buf_keymap(state.current_buf, "n", "<Esc>", function()
-	M.close_todos()
-end)
 
 return M
