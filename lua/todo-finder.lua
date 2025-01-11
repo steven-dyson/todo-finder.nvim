@@ -8,8 +8,7 @@ local M = {}
 -- TODO: Add some fancy CD pipeline just because
 -- TODO: Buffer highlights in place of todo-comments.nvim
 -- TODO: Remove autocomplete from search window
--- TODO: Support for scrolling when there are a lot of todos 
--- TODO: Do something with the users cursor. Might use it to scroll.
+-- TODO: Hide users cursor and replace with > character
 --]]
 
 local settings = {
@@ -32,6 +31,7 @@ local settings = {
 }
 
 vim.api.nvim_create_autocmd("BufWinEnter", {
+	-- TODO: This will be used for TODO highlights
 	callback = function()
 		--print("Ran")
 	end,
@@ -150,6 +150,7 @@ local function update_todo_highlights()
 
 		-- First line of active block
 		if line_in_block == 0 and todo_block == state.current_todo then
+			vim.api.nvim_win_set_cursor(0, { i, 0 })
 			vim.api.nvim_buf_add_highlight(state.current_buf, todo_list_default, "CursorLine", i - 1, 4, end_col)
 		end
 
