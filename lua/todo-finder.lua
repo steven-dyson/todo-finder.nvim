@@ -11,6 +11,11 @@ local M = {}
 -- TODO: Add function params
 --]]
 
+if vim.fn.has("nvim-0.8") == 0 then
+	vim.api.nvim_err_writeln("This plugin requires Neovim 0.8 or higher. Please update your Neovim version.")
+	return
+end
+
 local settings = {
 	exclude_dirs = {
 		["node_modules"] = true,
