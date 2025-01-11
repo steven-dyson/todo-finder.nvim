@@ -1,4 +1,4 @@
-# Todo Finder / todo-finder.nvim
+# todo-finder.nvim
 
 **Todo Finder** is a Neovim plugin that scans your project directory
 for TODO comments and displays them in a floating window for
@@ -11,6 +11,9 @@ quick access to pending tasks.
 - **Custom Colors**: Easily configure todo list with custom colors.
 - **Keybinding Support**: Set a custom keybinding to open the TODO list.
 - **Directory Exclusion**: Exclude directories containing plugins or modules.
+- Filtering: Filter todo list by file name and todo text.
+- Search Highlights: Search results include highlights.
+- User Interface: Clean user interface to make reading todos easy.
 
 ## Installation
 
@@ -19,7 +22,8 @@ quick access to pending tasks.
 ```lua
 return {
   "steven-dyson/todo-finder.nvim",
-  branch = "main",
+  branch = "main", -- or tag = "0.5.1"
+  dependencies = { "folke/which-key.nvim" },
   cmd = "ListTodos",
   keys = function()
     return {
@@ -57,6 +61,7 @@ Work In Progress...
 - Open TODO List: Press `<leader>T` to open the floating window with all TODOs.
 - Navigate: Use the arrow keys or `<C-j>` / `<C-k>` to move through the list.
 - Jump to TODO: Press `<CR>` to jump to the selected TODO item.
+- Search TODO List: Press `/` to enter search window.
 
 ## Commands
 
