@@ -139,13 +139,14 @@ vim.api.nvim_create_autocmd({ "BufWinEnter", "TextChangedI", "TextChanged" }, {
 
 		-- Get all lines in the buffer
 		local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-
+		-- TODO: Test a todo filtered_todos
 		-- Search for the word "todo-hl-test" and highlight
 		for i, line in ipairs(lines) do
-			local start_index, end_index = line:find(" TODO:")
+			local start_index, end_index = line:find(" " .. "TODO" .. ":")
 			if start_index and end_index then
 				vim.api.nvim_buf_add_highlight(0, ns, "TodoFlag", i - 1, start_index - 1, end_index - 1)
 				vim.api.nvim_buf_add_highlight(0, ns, "TodoFlagHidden", i - 1, end_index - 1, end_index)
+				vim.api.nvim_buf_add_highlight(0, ns, "TodoText", i - 1, end_index, -1)
 			end
 		end
 	end,
