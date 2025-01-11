@@ -184,31 +184,29 @@ M.list_todos = function()
 end
 
 M.update_list_buf = function()
-	state.todos = M.find_todos()
+	local all_todos = M.find_todos()
+	local filtered_todos = {}
 
 	local todo_text = {}
+	local spaces = string.rep(" ", 150)
 
-	local spaces = ""
-
-	for i = 1, 150 do
-		spaces = spaces .. " "
-	end
-
-	for _, todo in ipairs(state.todos) do
-		local lower = string.lower(todo.text)
+	for _, todo in ipairs(all_todos) do
+		local lower_text = string.lower(todo.text)
 		local lower_path = string.lower(todo.path)
 
-		if lower:find(state.search_string) or lower_path:find(state.search_string) then
+		if lower_text:find(state.search_string) or lower_path:find(state.search_string) then
+			table.insert(filtered_todos, todo)
 			table.insert(todo_text, string.format("TODO %s:%s%s", todo.path, todo.line, spaces))
 			table.insert(todo_text, string.format("%s%s", todo.text, spaces))
 			table.insert(todo_text, "")
 		end
 	end
 
+	state.todos = filtered_todos
+
 	vim.api.nvim_buf_set_lines(state.current_buf, 0, -1, false, todo_text)
 
 	update_todo_highlights()
-
 	highlight_buffer_matches(state.current_buf, state.search_string, todo_list_search)
 end
 
