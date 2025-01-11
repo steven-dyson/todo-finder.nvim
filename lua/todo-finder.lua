@@ -6,9 +6,9 @@ local M = {}
 -- TODO: Update README to include manual and Packer installation methods
 -- TODO: Might want to require a minimum neovim version
 -- TODO: Add some fancy CD pipeline just because
--- TODO: Buffer highlights in place of todo-comments.nvim
 -- TODO: Remove autocomplete from search window
 -- TODO: Hide users cursor and replace with > character
+-- TODO: Add function params
 --]]
 
 local settings = {
@@ -25,17 +25,11 @@ local settings = {
 	keymap = "<leader>T",
 	colors = {
 		flag = { fg = "#000000", bg = "#40E0D0", bold = true },
+		flagBlock = { fg = "#40E0D0", bg = "#40E0D0" },
 		text = { fg = "#40E0D0" },
 		active = { fg = "#FFAF5F" },
 	},
 }
-
-vim.api.nvim_create_autocmd("BufWinEnter", {
-	-- TODO: This will be used for TODO highlights
-	callback = function()
-		--print("Ran")
-	end,
-})
 
 -- NOTE: Optimized
 M.setup = function(opts)
@@ -58,6 +52,7 @@ M.setup = function(opts)
 	vim.api.nvim_set_hl(0, "TodoFlag", settings.colors.flag)
 	vim.api.nvim_set_hl(0, "TodoText", settings.colors.text)
 	vim.api.nvim_set_hl(0, "TodoActive", settings.colors.active)
+	vim.api.nvim_set_hl(0, "TodoFlagHidden", settings.colors.flagBlock)
 
 	vim.api.nvim_create_user_command("ListTodos", M.list_todos, {})
 
@@ -119,7 +114,10 @@ local highlight_buffer_matches = function(buf, string, ns)
 		local lower = string.lower(line:sub(exclude))
 		local match_start, match_end = lower:find(string)
 
+		print("test")
+
 		if match_start and match_end then
+			print("Found a match")
 			vim.api.nvim_buf_add_highlight(
 				buf,
 				ns,
@@ -129,8 +127,29 @@ local highlight_buffer_matches = function(buf, string, ns)
 				match_end + exclude - 1
 			)
 		end
+		print("no match", lines)
 	end
 end
+
+vim.api.nvim_create_autocmd({ "BufWinEnter", "TextChangedI", "TextChanged" }, {
+	callback = function()
+		-- Clear existing matches in the current buffer (optional, prevents duplicates)
+		local ns = vim.api.nvim_create_namespace("todo-hl-test")
+		vim.api.nvim_buf_clear_namespace(0, ns, 0, -1)
+
+		-- Get all lines in the buffer
+		local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+
+		-- Search for the word "todo-hl-test" and highlight
+		for i, line in ipairs(lines) do
+			local start_index, end_index = line:find(" TODO:")
+			if start_index and end_index then
+				vim.api.nvim_buf_add_highlight(0, ns, "TodoFlag", i - 1, start_index - 1, end_index - 1)
+				vim.api.nvim_buf_add_highlight(0, ns, "TodoFlagHidden", i - 1, end_index - 1, end_index)
+			end
+		end
+	end,
+})
 
 local function update_todo_highlights()
 	local lines = vim.api.nvim_buf_get_lines(state.current_buf, 0, -1, false)
@@ -343,7 +362,7 @@ M.find_todos = function()
 
 					local trimmed_line = line:match("^%s*(.-)%s*$")
 
-					if trimmed_line:find("TODO: ") then
+					if trimmed_line:find("TODO:" .. " ") then
 						local text = trimmed_line:match("TODO:%s*(.*)")
 
 						table.insert(state.todos, {
