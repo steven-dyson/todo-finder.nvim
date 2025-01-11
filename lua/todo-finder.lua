@@ -6,6 +6,10 @@ local M = {}
 -- TODO: Update README to include manual and Packer installation methods
 -- TODO: Might want to require a minimum neovim version
 -- TODO: Add some fancy CD pipeline just because
+-- TODO: Buffer highlights in place of todo-comments.nvim
+-- TODO: Remove autocomplete from search window
+-- TODO: Support for scrolling when there are a lot of todos 
+-- TODO: Do something with the users cursor. Might use it to scroll.
 --]]
 
 local settings = {
@@ -93,12 +97,14 @@ local create_floating_window = function(config, enter)
 	local win = vim.api.nvim_open_win(buf, enter or false, config)
 
 	vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
-	vim.keymap.set("n", "i", "<nop>", { buffer = buf }) -- Disable `i`
-	vim.keymap.set("n", "a", "<nop>", { buffer = buf }) -- Disable `a`
-	vim.keymap.set("n", "o", "<nop>", { buffer = buf }) -- Disable `o`
-	vim.keymap.set("n", "O", "<nop>", { buffer = buf }) -- Disable `O`
-	vim.keymap.set("n", "c", "<nop>", { buffer = buf }) -- Disable `c` commands
-	vim.keymap.set("n", "s", "<nop>", { buffer = buf }) -- Disable `s`
+
+	vim.keymap.set("n", "i", "<nop>", { buffer = buf })
+	vim.keymap.set("n", "a", "<nop>", { buffer = buf })
+	vim.keymap.set("n", "o", "<nop>", { buffer = buf })
+	vim.keymap.set("n", "O", "<nop>", { buffer = buf })
+	vim.keymap.set("n", "c", "<nop>", { buffer = buf })
+	vim.keymap.set("n", "s", "<nop>", { buffer = buf })
+
 	return { buf = buf, win = win }
 end
 
@@ -109,10 +115,19 @@ local highlight_buffer_matches = function(buf, string, ns)
 	vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
 
 	for i, line in ipairs(lines) do
-		local lower = string.lower(line)
+		local exclude = 5
+		local lower = string.lower(line:sub(exclude))
 		local match_start, match_end = lower:find(string)
+
 		if match_start and match_end then
-			vim.api.nvim_buf_add_highlight(buf, ns, "TodoActive", i - 1, match_start - 1, match_end)
+			vim.api.nvim_buf_add_highlight(
+				buf,
+				ns,
+				"TodoActive",
+				i - 1,
+				match_start + exclude - 2,
+				match_end + exclude - 1
+			)
 		end
 	end
 end
@@ -127,7 +142,7 @@ local function update_todo_highlights()
 		local line_in_block = (i - 1) % 3
 		local end_col = win_width
 
-		-- Highlight the first line's "TODO" flag and file path
+		-- Highlight the first line's flag and file path
 		if line_in_block == 0 then
 			vim.api.nvim_buf_add_highlight(state.current_buf, todo_list_default, "TodoFlag", i - 1, 0, 4)
 			vim.api.nvim_buf_add_highlight(state.current_buf, todo_list_default, "Title", i - 1, 4, -1)
@@ -181,7 +196,9 @@ M.update_list_buf = function()
 
 	for _, todo in ipairs(state.todos) do
 		local lower = string.lower(todo.text)
-		if lower:find(state.search_string) then
+		local lower_path = string.lower(todo.path)
+
+		if lower:find(state.search_string) or lower_path:find(state.search_string) then
 			table.insert(todo_text, string.format("TODO %s:%s%s", todo.path, todo.line, spaces))
 			table.insert(todo_text, string.format("%s%s", todo.text, spaces))
 			table.insert(todo_text, "")
@@ -196,7 +213,6 @@ M.update_list_buf = function()
 end
 
 M.create_list_window = function()
-	-- TODO: Centering seems off for some reason
 	local width = math.floor(vim.o.columns * 0.7)
 	local height = math.floor(vim.o.lines * 0.7)
 	local col = math.floor((vim.o.columns - width) / 2)
@@ -212,7 +228,7 @@ M.create_list_window = function()
 		border = "rounded",
 		title = " Todo Finder ",
 		title_pos = "center",
-		footer = " j = Next, k = Previous, Enter = Jump to ",
+		footer = " / = Search, j = Next, k = Previous, Enter = Jump to, q = Quit ",
 		footer_pos = "right",
 	}
 
@@ -266,6 +282,8 @@ M.create_search_window = function()
 		border = "rounded",
 		title = " Search Results ",
 		title_pos = "left",
+		footer = " <CR> = Search, q = Quit ",
+		footer_pos = "right",
 	}
 
 	local search = create_floating_window(search_window_config, false)
@@ -288,6 +306,11 @@ M.create_search_window = function()
 		vim.api.nvim_set_current_win(state.current_win)
 	end)
 
+	set_buf_keymap(search.buf, "i", "<Esc>", function()
+		vim.cmd("stopinsert")
+		vim.api.nvim_set_current_win(state.current_win)
+	end)
+
 	set_buf_keymap(search.buf, "n", "q", function()
 		vim.cmd("stopinsert")
 		M.close_todos()
@@ -305,29 +328,22 @@ M.find_todos = function()
 
 	local function todo_search(path)
 		for name, t in vim.fs.dir(path) do
-			-- TODO: Can probably just get the relative path
 			local full_path = path .. "/" .. name
+			local relative_path = full_path:sub(#project_root + 2)
 
 			if t == "directory" and not settings.exclude_dirs[name] and name:sub(1, 1) ~= "." then
 				todo_search(full_path)
 			elseif t == "file" then
 				local data = vim.fn.readfile(full_path)
-				local line_number = 0
+				local line_number = 1
 
 				for _, line in ipairs(data) do
-					line_number = line_number + 1
+					local lower = string.lower(line)
 
 					local trimmed_line = line:match("^%s*(.-)%s*$")
 
-					-- TODO: I removed the test_chars because it broken todos at the end
-					-- of new lines. However I'd like to add a check for comments to
-					-- address this later
-
 					if trimmed_line:find("TODO: ") then
 						local text = trimmed_line:match("TODO:%s*(.*)")
-
-						-- Get the relative path
-						local relative_path = full_path:sub(#project_root + 2)
 
 						table.insert(state.todos, {
 							text = text,
@@ -335,6 +351,7 @@ M.find_todos = function()
 							line = line_number,
 						})
 					end
+					line_number = line_number + 1
 				end
 			end
 		end
@@ -342,8 +359,6 @@ M.find_todos = function()
 
 	todo_search(project_root)
 
-	-- TODO: After going back ad forth on using state or a local
-	-- variable, I'm still undecided so I'll probably change later
 	return state.todos
 end
 
