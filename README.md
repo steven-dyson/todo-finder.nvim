@@ -5,6 +5,8 @@ for TODO comments and displays them in a floating window for
 easy navigation. It streamlines project management by allowing
 quick access to pending tasks.
 
+![Neovim window with todo-finder.nvim open](https://raw.githubusercontent.com/steven-dyson/todo-finder.nvim/main/images/screenshot_1.png)
+
 ## Features
 
 - **Fast Scanning**: Quickly searches your project for TODOs.
