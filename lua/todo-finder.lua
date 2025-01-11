@@ -150,7 +150,9 @@ local function update_todo_highlights()
 
 		-- First line of active block
 		if line_in_block == 0 and todo_block == state.current_todo then
-			vim.api.nvim_win_set_cursor(0, { i, 0 })
+			if vim.api.nvim_get_current_win() ~= state.search_win then
+				vim.api.nvim_win_set_cursor(0, { i, 0 })
+			end
 			vim.api.nvim_buf_add_highlight(state.current_buf, todo_list_default, "CursorLine", i - 1, 4, end_col)
 		end
 
