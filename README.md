@@ -47,6 +47,7 @@ return {
       },
       colors = {
         flag = { fg = "#FFFFFF", bg = "#40E0D0", bold = true },
+        flagFilled = { fg = "#40E0D0", bg = "#40E0D0" },
         text = { fg = "#40E0D0" },
         active = { fg = "#FFAF5F" },
       },
