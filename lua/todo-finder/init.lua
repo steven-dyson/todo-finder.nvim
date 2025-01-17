@@ -1,7 +1,8 @@
+local helpers = require("todo-finder.helpers")
+
 local M = {}
 
---[[
--- TODO: Add tests 
+-- TODO: Add tests
 -- TODO: Support for additional flags such as NOTE, TEST, and WARN
 -- TODO: Update README to include manual and Packer installation methods
 -- TODO: Might want to require a minimum neovim version
@@ -9,7 +10,10 @@ local M = {}
 -- TODO: Remove autocomplete from search window
 -- TODO: Hide users cursor and replace with > character
 -- TODO: Add function params
---]]
+-- TODO: Multiline Support for multiple languages (only lua right now)
+-- TODO: Some kind of UI change to show turrent todo number and total
+-- TODO: Icons on left of line numbers for flags
+-- TODO: Concat multiline text to todo list text
 
 if vim.fn.has("nvim-0.8") == 0 then
 	vim.api.nvim_err_writeln("This plugin requires Neovim 0.8 or higher. Please update your Neovim version.")
@@ -33,6 +37,16 @@ local settings = {
 		flagFilled = { fg = "#40E0D0", bg = "#40E0D0" },
 		text = { fg = "#40E0D0" },
 		active = { fg = "#FFAF5F" },
+	},
+	comment_definitions = {
+		-- Shared comment styles
+		["js_like"] = {
+			filetypes = { "javascript", "typescript", "javascriptreact", "typescriptreact", "svelte", "vue" },
+			comments = {
+				{ open = "//", close = "" }, -- Single-line
+				{ open = "/*", close = "*/" }, -- Multi-line
+			},
+		},
 	},
 }
 
@@ -72,72 +86,100 @@ local todo_list_default = vim.api.nvim_create_namespace("todo_list_default")
 local todo_list_active = vim.api.nvim_create_namespace("todo_list_active")
 local todo_list_search = vim.api.nvim_create_namespace("todo_list_search")
 
--- Generic
-local set_buf_keymap = function(buf, mode, lhs, func)
-	vim.keymap.set(mode, lhs, func, {
-		buffer = buf,
-		noremap = true,
-		nowait = true,
-		silent = true,
-	})
-end
-
--- Generic
-local create_floating_window = function(config, enter)
-	local buf = vim.api.nvim_create_buf(false, true)
-	local win = vim.api.nvim_open_win(buf, enter or false, config)
-
-	vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
-
-	vim.keymap.set("n", "i", "<nop>", { buffer = buf })
-	vim.keymap.set("n", "a", "<nop>", { buffer = buf })
-	vim.keymap.set("n", "o", "<nop>", { buffer = buf })
-	vim.keymap.set("n", "O", "<nop>", { buffer = buf })
-	vim.keymap.set("n", "c", "<nop>", { buffer = buf })
-	vim.keymap.set("n", "s", "<nop>", { buffer = buf })
-
-	return { buf = buf, win = win }
-end
-
--- Generic
-local highlight_buffer_matches = function(buf, string, ns)
+-- TODO: This should take in the exclusions as a table with start and end
+-- TODO: This should take in a color instead of using TodoActive
+local highlight_buffer_matches = function(buf, string, ns, color, exclude_padding)
 	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 
 	vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
 
 	for i, line in ipairs(lines) do
-		local exclude = 5
-		local lower = string.lower(line:sub(exclude))
+		local lower = string.lower(line:sub(exclude_padding))
 		local match_start, match_end = lower:find(string)
 
 		if match_start and match_end then
 			vim.api.nvim_buf_add_highlight(
 				buf,
 				ns,
-				"TodoActive",
+				color,
 				i - 1,
-				match_start + exclude - 2,
-				match_end + exclude - 1
+				match_start + exclude_padding - 2,
+				match_end + exclude_padding - 1
 			)
 		end
 	end
 end
 
+--local
+
+local function get_comments_for_filetype(ft)
+	local styles = {}
+
+	for _, group in pairs(settings.comment_definitions) do
+		if vim.tbl_contains(group.filetypes, ft) then
+			vim.list_extend(styles, group.comments)
+		end
+	end
+
+	return styles
+end
+
+local function escape_pattern(text)
+	local escaped = text:gsub("([%p])", "%%%1")
+	--return escaped
+	return text
+end
+
 vim.api.nvim_create_autocmd({ "BufWinEnter", "TextChangedI", "TextChanged" }, {
 	callback = function()
+		local ft = vim.bo.filetype
+		local comments = get_comments_for_filetype(ft)
+
 		local ns = vim.api.nvim_create_namespace("todo-hl-test")
 		vim.api.nvim_buf_clear_namespace(0, ns, 0, -1)
 
 		local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+		local is_multiline = false
+		local highlights = {}
 
 		for i, line in ipairs(lines) do
-			local start_index, end_index = line:find(" " .. "TODO" .. ":")
+			local start_index, end_index = line:find("TODO" .. ":")
+
+			local prev_line = "  "
+			if i > 1 then
+				prev_line = lines[i - 1]
+			end
+
+			local combined = line .. prev_line:sub(1, 2)
 
 			if start_index and end_index then
-				vim.api.nvim_buf_add_highlight(0, ns, "TodoFlag", i - 1, start_index - 1, end_index - 1)
-				vim.api.nvim_buf_add_highlight(0, ns, "TodoFlagFilled", i - 1, end_index - 1, end_index)
-				vim.api.nvim_buf_add_highlight(0, ns, "TodoText", i - 1, end_index, -1)
+				table.insert(highlights, { 0, ns, "TodoText", i - 1, 0, -1 })
+				--table.insert(highlights, { 0, ns, "TodoFlagFilled", i - 1, end_index - 1, end_index })
+				table.insert(highlights, { 0, ns, "TodoFlag", i - 1, start_index - 1, end_index - 1 })
 			end
+
+			-- Start multiline checks
+			for _, comment in ipairs(comments) do
+				if is_multiline then
+					table.insert(highlights, { 0, ns, "TodoText", i - 1, 0, -1 })
+				end
+
+				local open_start, open_end = line:find(escape_pattern(comment.open))
+				local close_start, close_end = combined:find(escape_pattern(comment.close))
+
+				if start_index and open_start and comment.close ~= "" and not close_start then
+					is_multiline = true
+					table.insert(highlights, { 0, ns, "TodoText", i - 1, 0, -1 })
+				end
+
+				if close_start and comment.close ~= "" then
+					is_multiline = false
+				end
+			end
+		end
+
+		for _, hl in ipairs(highlights) do
+			vim.api.nvim_buf_add_highlight(hl[1], hl[2], hl[3], hl[4], hl[5], hl[6])
 		end
 	end,
 })
@@ -189,6 +231,7 @@ M.jump_to_todo = function()
 end
 
 M.list_todos = function()
+	vim.cmd("nohlsearch")
 	M.create_list_window()
 
 	M.update_list_buf()
@@ -220,7 +263,7 @@ M.update_list_buf = function()
 	vim.api.nvim_buf_set_lines(state.current_buf, 0, -1, false, todo_text)
 
 	update_todo_highlights()
-	highlight_buffer_matches(state.current_buf, state.search_string, todo_list_search)
+	highlight_buffer_matches(state.current_buf, state.search_string, todo_list_search, "TodoActive", 5)
 end
 
 M.create_list_window = function()
@@ -243,38 +286,38 @@ M.create_list_window = function()
 		footer_pos = "right",
 	}
 
-	local todo_list = create_floating_window(window_config, true)
+	local todo_list = helpers.create_floating_window(window_config, true)
 	state.current_buf = todo_list.buf
 	state.current_win = todo_list.win
 
-	set_buf_keymap(todo_list.buf, "n", "q", function()
+	helpers.set_buf_keymap(todo_list.buf, "n", "q", function()
 		M.close_todos()
 	end)
 
-	set_buf_keymap(todo_list.buf, "n", "<Esc>", function()
+	helpers.set_buf_keymap(todo_list.buf, "n", "<Esc>", function()
 		M.close_todos()
 	end)
 
-	set_buf_keymap(todo_list.buf, "n", "/", function()
+	helpers.set_buf_keymap(todo_list.buf, "n", "/", function()
 		vim.api.nvim_set_current_win(state.search_win)
 		vim.cmd("startinsert")
 	end)
 
-	set_buf_keymap(todo_list.buf, "n", "j", function()
+	helpers.set_buf_keymap(todo_list.buf, "n", "j", function()
 		if state.current_todo < #state.todos then
 			state.current_todo = state.current_todo + 1
 			update_todo_highlights()
 		end
 	end)
 
-	set_buf_keymap(todo_list.buf, "n", "k", function()
+	helpers.set_buf_keymap(todo_list.buf, "n", "k", function()
 		if state.current_todo > 1 then
 			state.current_todo = state.current_todo - 1
 			update_todo_highlights()
 		end
 	end)
 
-	set_buf_keymap(todo_list.buf, "n", "<CR>", function()
+	helpers.set_buf_keymap(todo_list.buf, "n", "<CR>", function()
 		M.jump_to_todo()
 	end)
 end
@@ -297,7 +340,7 @@ M.create_search_window = function()
 		footer_pos = "right",
 	}
 
-	local search = create_floating_window(search_window_config, false)
+	local search = helpers.create_floating_window(search_window_config, false)
 	state.search_win = search.win
 	state.search_buf = search.buf
 
@@ -312,22 +355,22 @@ M.create_search_window = function()
 		end,
 	})
 
-	set_buf_keymap(search.buf, "n", "<Esc>", function()
+	helpers.set_buf_keymap(search.buf, "n", "<Esc>", function()
 		vim.cmd("stopinsert")
 		vim.api.nvim_set_current_win(state.current_win)
 	end)
 
-	set_buf_keymap(search.buf, "i", "<Esc>", function()
+	helpers.set_buf_keymap(search.buf, "i", "<Esc>", function()
 		vim.cmd("stopinsert")
 		vim.api.nvim_set_current_win(state.current_win)
 	end)
 
-	set_buf_keymap(search.buf, "n", "q", function()
+	helpers.set_buf_keymap(search.buf, "n", "q", function()
 		vim.cmd("stopinsert")
 		M.close_todos()
 	end)
 
-	set_buf_keymap(search.buf, "i", "<CR>", function()
+	helpers.set_buf_keymap(search.buf, "i", "<CR>", function()
 		vim.cmd("stopinsert")
 		vim.api.nvim_set_current_win(state.current_win)
 	end)
