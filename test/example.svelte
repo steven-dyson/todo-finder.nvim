@@ -1,25 +1,46 @@
 <script>
-	// TODO: Handle JS comments
+	// TODO: Single Line
+	console.log("test");
 
+	// TODO: Multiline Single Repeating
+	// Another
 	console.log("test");
 
 	/*
-	 *
-	 */
+ 	TODO: Multiline Flag on Next Line
+ 	Another line
+	*/
+	console.log("test");
+
+	/* TODO: Multiline Flag on Same Line
+ 	Another line
+	*/
+	console.log("test");
 </script>
 
-<!-- TODO: This is a single line -->
+<!-- TODO: Multiline Terminated -->
+<h1>Words</h1>
 
-<!-- TODO: This is a repeating multiline -->
+<!-- TODO: Multiline Terminated Repeating -->
 <!-- More here -->
 
 <!--
-TODO: This is a multiline abc123
+TODO: This is a multiline
 -->
+<h2>Subtitle</h2>
 
 <!-- TODO: Another multiline
 More -->
 
 <style>
-	/* TODO: Handle CSS comments */
+	/* TODO: Single Line in Styles */
+	h1 {
+		color: red;
+	}
+
+	/* TODO: Multiline in Styles
+   Another example */
+	h2 {
+		color: blue;
+	}
 </style>

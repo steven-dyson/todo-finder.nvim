@@ -1,22 +1,20 @@
 
+// TODO: Single Line
+console.log("test")
+
+// TODO: Multiline Single Repeating
+// Another
+console.log("test")
+
+/*
+ TODO: Multiline Flag on Next Line
+ Another line
+*/
 
 console.log("test")
-/* Some stuff
- * nope;
- 
 
-/* TODO: Here is more text
- * Line 2
- * Line 3
- */
+/* TODO: Multiline Flag on Same Line
+ Another line
+*/
 
-// Not a todo
-
-/* TODO: Here is more text
- * Line 2
- * Line 3
- */
-
-// TODO: Some multi Line
-// Another line below
-console.log("Test 2")
+console.log("test")

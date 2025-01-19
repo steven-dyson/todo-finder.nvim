@@ -1,14 +1,15 @@
 # TODO: Single Line
-key: value
+title = "Example TOML"
 
 # TODO: Multiline Single Repeating
 # Another example
-list:
-  - item1
-  - item2
+[owner]
+name = "Tom Preston-Werner"
+dob = "1979-05-27T07:32:00Z"
 
 # TODO: Multiline Description
 # This is a multiline comment
 # describing something important
-nested:
-  key: value
+[database]
+server = "192.168.1.1"
+ports = [ 8001, 8001, 8002 ]

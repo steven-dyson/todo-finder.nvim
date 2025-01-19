@@ -1,14 +1,19 @@
-# TODO: This is a single line
+if __name__ == "__main__":
+    # TODO: Single Line
+    print("test")
 
-# TODO: This is a repeating multiline
-# More here
+    # TODO: Multiline Single Repeating
+    # Another
+    print("test")
 
-"""
-TODO: This is a multiline
-"""
+    """
+    TODO: Multiline Flag on Next Line
+    Another line
+    """
+    print("test")
 
-""" TODO: Another multiline
-More
-"""
-
-print("Test")
+    """
+    TODO: Multiline Flag on Same Line
+    Another line
+    """
+    print("test")

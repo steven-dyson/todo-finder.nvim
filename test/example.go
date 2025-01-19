@@ -1,20 +1,23 @@
 package main
 
-import "log"
-
-// TODO: This is a single line
-
-// TODO: This is a repeating multiline
-// More here
-
-/*
- * TODO: This is a multiline
- */
-
-/* TODO: Another multiline
- * More
- */
+import "fmt"
 
 func main() {
-	log.Println("Test")
+	// TODO: Single Line
+	fmt.Println("test")
+
+	// TODO: Multiline Single Repeating
+	// Another
+	fmt.Println("test")
+
+	/*
+	   TODO: Multiline Flag on Next Line
+	   Another line
+	*/
+	fmt.Println("test")
+
+	/* TODO: Multiline Flag on Same Line
+	   Another line
+	*/
+	fmt.Println("test")
 }

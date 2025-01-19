@@ -1,25 +1,46 @@
 
 ---
-// TODO: Handle JS in the frontmatter
+console.log("test") // TODO: Single Line
+
+// TODO: Multiline Single Repeating
+// Another
 console.log("test")
+
 /*
- TODO: Multiline in astro
+ TODO: Multiline Flag on Next Line
  Another line
 */
+console.log("test")
 
+/* TODO: Multiline Flag on Same Line
+ Another line
+*/
 console.log("test")
 ---
-<div>
-<!-- TODO: This is a single line -->
-	<h1>Words</h1>
-<!-- TODO: This is a repeating multiline -->
+
+<!-- TODO: Multiline Terminated -->
+<h1>Words</h1>
+
+<!-- TODO: Multiline Terminated Repeating -->
 <!-- More here -->
 
 <!--
 TODO: This is a multiline
 -->
-	<h2>Subtitle</h2>
+<h2>Subtitle</h2>
+
 <!-- TODO: Another multiline
 More -->
-</div>
 
+<style>
+/* TODO: Single Line in Styles */
+h1 {
+  color: red;
+}
+
+/* TODO: Multiline in Styles
+   Another example */
+h2 {
+  color: blue;
+}
+</style>

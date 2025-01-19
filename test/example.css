@@ -1,13 +1,19 @@
-
-/* TODO: This is a single line */
-
-/* TODO: This is a repeating multiline */
-/* More here */
+/* TODO: Single Line */
+body {
+  background-color: white;
+}
 
 /*
- * TODO: This is a multiline
- */
+ TODO: Multiline Flag on Next Line
+ Another line
+*/
+h1 {
+  color: black;
+}
 
-/* TODO: Another multiline
- * More
- */
+/* TODO: Multiline Flag on Same Line
+ Another line
+*/
+p {
+  font-size: 16px;
+}
