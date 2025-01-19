@@ -39,16 +39,77 @@ local settings = {
 		active = { fg = "#FFAF5F" },
 	},
 	comment_definitions = {
-		-- Shared comment styles
-		["js_like"] = {
-			filetypes = { "javascript", "typescript", "javascriptreact", "typescriptreact", "svelte", "vue" },
-			comments = {
-				{ open = "//", close = "" }, -- Single-line
-				{ open = "/*", close = "*/" }, -- Multi-line
+		{
+			["js_like"] = {
+				filetypes = { "javascript", "typescript", "javascriptreact", "typescriptreact" },
+				comments = {
+					{ open = "%/%/", close = "" }, -- Single-line
+					{ open = "%/%*", close = "%*%/" }, -- Multi-line
+				},
+			},
+			["html_like"] = {
+				filetypes = { "html", "astro", "xml" },
+				comments = {
+					{ open = "%<%!--", close = "--%>" }, -- Multi-line
+				},
+			},
+			["js_frameworks"] = {
+				filetypes = { "astro", "vue", "svelte" },
+				comments = {
+					{ open = "%/%/", close = "" }, -- JS single-line
+					{ open = "%/%*", close = "%*%/" }, -- JS multi-line
+					{ open = "%<%!--", close = "--%>" }, -- HTML style
+				},
+			},
+			["go"] = {
+				filetypes = { "go" },
+				comments = {
+					{ open = "//", close = "" }, -- Single-line
+					{ open = "/*", close = "*/" }, -- Multi-line
+				},
+			},
+			["py_like"] = {
+				filetypes = { "python", "sh", "bash" },
+				comments = {
+					{ open = "#", close = "" }, -- Single-line
+					{ open = "'''", close = "'''" }, -- Multiline
+					{ open = [["""]], close = [["""]] }, -- Multiline
+				},
+			},
+			["yaml_like"] = {
+				filetypes = { "yaml", "toml" },
+				comments = {
+					{ open = "#", close = "" }, -- Single-line for YAML and TOML
+				},
+			},
+			["lua"] = {
+				filetypes = { "lua" },
+				comments = {
+					{ open = "%-%-", close = "" }, -- Single-line
+					{ open = "--%[%[", close = "%]%]--" }, -- Multi-line
+				},
 			},
 		},
 	},
 }
+
+local function get_comments_for_filetype(ft)
+	local styles = {}
+
+	for _, group in pairs(settings.comment_definitions) do
+		if vim.tbl_contains(group.filetypes, ft) then
+			vim.list_extend(styles, group.comments)
+		end
+	end
+
+	return styles
+end
+
+local function escape_pattern(text)
+	local escaped = text:gsub("([%p])", "%%%1")
+	--return escaped
+	return text
+end
 
 -- NOTE: Optimized
 M.setup = function(opts)
@@ -68,6 +129,83 @@ M.setup = function(opts)
 
 	wk.add({
 		{ settings.keymap, M.list_todos, desc = "List Project Todos", icon = "📋" },
+	})
+
+	vim.api.nvim_create_autocmd({ "BufWinEnter", "TextChangedI", "TextChanged" }, {
+		callback = function()
+			local ft = vim.bo.filetype
+			local comments = get_comments_for_filetype(ft)
+
+			local ns = vim.api.nvim_create_namespace("todo-hl-test")
+			vim.api.nvim_buf_clear_namespace(0, ns, 0, -1)
+
+			local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+			local is_multiline = false
+			local is_multiline_single = false
+			local highlights = {}
+
+			for i, line in ipairs(lines) do
+				local start_index, end_index = line:find("TODO" .. ":")
+
+				local prev_line = "  "
+				if i > 1 then
+					prev_line = lines[i - 1]
+				end
+
+				local next_line = ""
+				if i < #lines then
+					next_line = lines[i + 1]
+				end
+
+				local combined = prev_line:sub(1, 2) .. line .. next_line:sub(1, 2)
+
+				if start_index and end_index then
+					table.insert(highlights, { 0, ns, "TodoText", i - 1, 0, -1 })
+					--table.insert(highlights, { 0, ns, "TodoFlagFilled", i - 1, end_index - 1, end_index })
+					table.insert(highlights, { 0, ns, "TodoFlag", i - 1, start_index - 1, end_index - 1 })
+				end
+
+				-- Start multiline checks
+				for _, comment in ipairs(comments) do
+					if is_multiline_single and not line:find(comment.open) and comment.close == "" then
+						is_multiline_single = false
+						-- print("KNEW IT", line, next_line, line:find(comment.open))
+					end
+
+					if is_multiline or is_multiline_single then
+						table.insert(highlights, { 0, ns, "TodoText", i - 1, 0, -1 })
+					end
+
+					if comment.close ~= "" and prev_line:find(comment.open) and start_index then
+						-- print(prev_line)
+						table.insert(highlights, { 0, ns, "TodoText", i - 2, 0, -1 })
+						is_multiline = true
+					end
+
+					local open_start, open_end = line:find(escape_pattern(comment.open))
+					local close_start, close_end = combined:find(escape_pattern(comment.close))
+
+					if start_index and open_start and comment.close ~= "" and not close_start then
+						is_multiline = true
+						table.insert(highlights, { 0, ns, "TodoText", i - 1, 0, -1 })
+					end
+
+					if start_index and line:find(comment.open) and next_line:find(comment.open) then
+						is_multiline_single = true
+					end
+
+					if close_start and comment.close ~= "" then
+						is_multiline = false
+					end
+
+					--print("TEST", comment.open, comment.close)
+				end
+			end
+
+			for _, hl in ipairs(highlights) do
+				vim.api.nvim_buf_add_highlight(hl[1], hl[2], hl[3], hl[4], hl[5], hl[6])
+			end
+		end,
 	})
 end
 
@@ -111,78 +249,6 @@ local highlight_buffer_matches = function(buf, string, ns, color, exclude_paddin
 end
 
 --local
-
-local function get_comments_for_filetype(ft)
-	local styles = {}
-
-	for _, group in pairs(settings.comment_definitions) do
-		if vim.tbl_contains(group.filetypes, ft) then
-			vim.list_extend(styles, group.comments)
-		end
-	end
-
-	return styles
-end
-
-local function escape_pattern(text)
-	local escaped = text:gsub("([%p])", "%%%1")
-	--return escaped
-	return text
-end
-
-vim.api.nvim_create_autocmd({ "BufWinEnter", "TextChangedI", "TextChanged" }, {
-	callback = function()
-		local ft = vim.bo.filetype
-		local comments = get_comments_for_filetype(ft)
-
-		local ns = vim.api.nvim_create_namespace("todo-hl-test")
-		vim.api.nvim_buf_clear_namespace(0, ns, 0, -1)
-
-		local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-		local is_multiline = false
-		local highlights = {}
-
-		for i, line in ipairs(lines) do
-			local start_index, end_index = line:find("TODO" .. ":")
-
-			local prev_line = "  "
-			if i > 1 then
-				prev_line = lines[i - 1]
-			end
-
-			local combined = line .. prev_line:sub(1, 2)
-
-			if start_index and end_index then
-				table.insert(highlights, { 0, ns, "TodoText", i - 1, 0, -1 })
-				--table.insert(highlights, { 0, ns, "TodoFlagFilled", i - 1, end_index - 1, end_index })
-				table.insert(highlights, { 0, ns, "TodoFlag", i - 1, start_index - 1, end_index - 1 })
-			end
-
-			-- Start multiline checks
-			for _, comment in ipairs(comments) do
-				if is_multiline then
-					table.insert(highlights, { 0, ns, "TodoText", i - 1, 0, -1 })
-				end
-
-				local open_start, open_end = line:find(escape_pattern(comment.open))
-				local close_start, close_end = combined:find(escape_pattern(comment.close))
-
-				if start_index and open_start and comment.close ~= "" and not close_start then
-					is_multiline = true
-					table.insert(highlights, { 0, ns, "TodoText", i - 1, 0, -1 })
-				end
-
-				if close_start and comment.close ~= "" then
-					is_multiline = false
-				end
-			end
-		end
-
-		for _, hl in ipairs(highlights) do
-			vim.api.nvim_buf_add_highlight(hl[1], hl[2], hl[3], hl[4], hl[5], hl[6])
-		end
-	end,
-})
 
 local function update_todo_highlights()
 	local lines = vim.api.nvim_buf_get_lines(state.current_buf, 0, -1, false)
